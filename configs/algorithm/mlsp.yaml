@@ -1,0 +1,11 @@
+_target_: src.algorithms.MLSP
+
+name: mlsp
+
+fixed_scale: False
+use_sip2net: False
+sip2net_params:
+  mse_weight: 0.02
+  alpha1: 500.0
+  alpha2: 1.0
+  alpha3: 0.0

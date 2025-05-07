@@ -1,0 +1,2 @@
+task1.ckpt filter=lfs diff=lfs merge=lfs -text
+large_file_needed filter=lfs diff=lfs merge=lfs -text

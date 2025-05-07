@@ -1,0 +1,3 @@
+_target_: src.networks.UNetModel
+
+n_channels: 8
