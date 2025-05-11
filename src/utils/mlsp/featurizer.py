@@ -1,5 +1,6 @@
 import random
 
+import math
 import numpy as np
 import torch
 from numba import njit
@@ -155,11 +156,62 @@ def normalize_input(input_tensor):
     for i in range(2):
         
         normalized[i] = (normalized[i] / 255.0 - mean[i]) / std[i]
-        normalized[2] = torch.log10(1 + normalized[2])
-        normalized[3] = normalized[3] / min_antenna_gain
-        normalized[4] = torch.log10(normalized[4]) - 1.9  # "magic shift"
-        # normalized[5] = normalized[5] / 100.0  # this feature mask has values < 300
+    normalized[2] = torch.log10(1 + normalized[2])
+    normalized[3] = normalized[3] / min_antenna_gain
+    normalized[4] = torch.log10(normalized[4]) - 1.9  # "magic shift"
+    # normalized[5] = normalized[5] / 100.0  # this feature mask has values < 300
     return normalized
+
+@njit
+def select_indices(cand_idx, W, num_points, min_sep):
+    sel = np.empty((num_points, 2), np.int64)
+    count = 0
+    min_sep_sq = min_sep * min_sep
+    for idx in cand_idx:
+        if count >= num_points:
+            break
+        r = idx // W
+        c = idx - r * W
+        ok = True
+        for j in range(count):
+            dr = r - sel[j, 0]
+            dc = c - sel[j, 1]
+            if dr * dr + dc * dc < min_sep_sq:
+                ok = False
+                break
+        if ok:
+            sel[count, 0] = r
+            sel[count, 1] = c
+            count += 1
+    return sel, count
+
+
+def add_points(matrix, x_ant, y_ant, num_points, alpha=2.0, min_sep=None, oversample=10):
+    H, W = matrix.shape
+    ys = np.arange(H)[:, None]
+    xs = np.arange(W)[None, :]
+    dist = np.hypot(ys - y_ant, xs - x_ant).flatten()
+    probs = dist ** alpha
+    total = probs.sum()
+    if total == 0:
+        probs[:] = 1
+        total = H * W
+    probs /= total
+    cand = np.random.choice(H * W, num_points * oversample, True, p=probs)
+    cand = np.unique(cand)
+    np.random.shuffle(cand)
+    if min_sep is None:
+        min_sep = 0.5 * math.sqrt(H * W / num_points)
+    sel_arr, cnt = select_indices(cand.astype(np.int64), W, num_points, min_sep)
+    selected = [(int(sel_arr[i, 0]), int(sel_arr[i, 1])) for i in range(cnt)]
+    if cnt < num_points:
+        rem = np.setdiff1d(np.arange(H * W), [r * W + c for r, c in selected], assume_unique=False)
+        fill = np.random.choice(rem, num_points - cnt, False, p=probs[rem] / probs[rem].sum())
+        for idx in fill:
+            selected.append(divmod(int(idx), W))
+    for r, c in selected:
+        matrix[r, c] = 1
+    return selected
 
 
 def sparse_sampling(sample: RadarSample, training: bool, inference: bool, sparsity_range: tuple[float, float]):
