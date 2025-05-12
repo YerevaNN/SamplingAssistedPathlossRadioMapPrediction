@@ -1,0 +1,1 @@
+To run the evaluations you need task1.ipynb. You need to specify main_path and ss_path and task_idx. For requesting sparse measurements use task2.ipynb, it will create mask for sparse measurements for each input and. It will also create a pickle file that includes a dictionary with requested coordinates for each input.
